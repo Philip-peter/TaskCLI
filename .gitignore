@@ -3,3 +3,4 @@ __pycache__
 taskclivenv
 venv
 env
+*.json
