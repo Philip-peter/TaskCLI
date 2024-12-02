@@ -79,6 +79,7 @@ class TaskCLI:
             None
         """
         added_time = str(datetime.datetime.now())
+        #store task details in dictionary and append to a list and create json
         task_data = dict(id=p_arg.taskid, description=p_arg.taskdescription, status='todo', createdAt=added_time, updatedAt=added_time)
         task_list = list()
         task_list.append(task_data)
