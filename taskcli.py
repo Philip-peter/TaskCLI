@@ -2,39 +2,35 @@
 import argparse
 import os
 import json
-from dataclasses import dataclass, field
 import datetime
-from typing import TextIO
+import tabulate
 
 
-@dataclass
 class TaskCLI:
+
     """
     Command line tool for managing daily task
     """
     
-    #initiate name of default file for recording task
-    default_file: str = field(default="Default-Task-Tracker.json")
-
-    @staticmethod
-    def _create_task_file()->TextIO:
-        """
-        Create default task file
-
-            Returns: 
-                file (TextIO): file for recoding task
-        """
-        default_filename = "Default-Task-Tracker.json"
-        with open(default_filename, 'x', encoding='utf-8') as file:
-            return file
+    def __init__(self) -> None:
+        #initiate default file for recording task
+        self.default_task_file = "TaskFile.json"
+        if not os.path.exists(self.default_task_file):
+            taskfile = open(self.default_task_file, mode='x')
+            taskfile.close()
+            
     
-    def __post_init__(self) -> TextIO | None:
-        """
-        check if file exist and create if it doesnt exist
-        """
-        if not os.path.exists(self.default_file):
-            self._create_task_file()
-   
+    @staticmethod
+    def _get_current_id(current_task_file) -> int:
+        if os.path.getsize(current_task_file) == 0:
+            current_id = 1
+        else:
+            with open(current_task_file, mode='r', encoding='utf-8') as file:
+                file_data = json.load(file)
+            current_id = file_data[-1]["id"] + 1 
+        return current_id
+
+
     def parse_command(self, argt=None) -> argparse.Namespace:
         """
         command line parsers for tasks
@@ -46,21 +42,20 @@ class TaskCLI:
         subparser = parser.add_subparsers(dest='command')
 
         add_task = subparser.add_parser('add')
-        add_task.add_argument("taskid", help="task id to be added")
         add_task.add_argument("taskdescription", help="task decription to be added")
 
         update_task = subparser.add_parser('update')
-        update_task.add_argument("taskid", help="task id to be updated")
-        update_task.add_argument("taskdescription", help="task decription to be updated")
+        update_task.add_argument("taskid", help="task id to be updated", type=int)
+        update_task.add_argument("taskdescription", help="task decription to be updated", type=str)
 
         delete_task = subparser.add_parser('delete')
-        delete_task.add_argument("taskid", help="task id to be deleted")
+        delete_task.add_argument("taskid", help="task id to be deleted", type=int)
 
         mark_progress = subparser.add_parser('mark-in-progress')
-        mark_progress.add_argument("taskid")
+        mark_progress.add_argument("taskid", type=int)
 
         mark_done = subparser.add_parser('mark-done')
-        mark_done.add_argument("taskid")
+        mark_done.add_argument("taskid", type=int)
 
         list_task = subparser.add_parser('list')
         list_task.add_argument("status", nargs='?', choices=['todo', 'in-progress', 'done'])
@@ -68,6 +63,7 @@ class TaskCLI:
         argument = parser.parse_args(argt)
 
         return argument
+
 
     def add_task(self, p_arg)->None:
         """
@@ -78,21 +74,23 @@ class TaskCLI:
         Return:
             None
         """
-        added_time = str(datetime.datetime.now())
-        #store task details in dictionary and append to a list and create json
-        task_data = dict(id=p_arg.taskid, description=p_arg.taskdescription, status='todo', createdAt=added_time, updatedAt=added_time)
-        task_list = list()
-        task_list.append(task_data)
-        if os.path.getsize(self.default_file) == 0:
-            with open(self.default_file, 'w', encoding="utf-8") as file:
-                json.dump(task_list, file, indent=4)
+        add_time = str(datetime.datetime.now())
+        task_id = self._get_current_id(self.default_task_file)
+        #create List[dict] to create data object and write in JSON format
+        task_object = dict(id=task_id, description=p_arg.taskdescription, status='todo', createdAt=add_time, updatedAt=add_time)
+        task = list()
+        task.append(task_object)
+        if os.path.getsize(self.default_task_file) == 0:
+            with open(self.default_task_file, 'w', encoding="utf-8") as file:
+                json.dump(task, file, indent=4)
         else:
-            with open(self.default_file, 'r+', encoding='utf-8') as file:
+            with open(self.default_task_file, 'r+', encoding='utf-8') as file:
                 file_data = json.load(file)
-                file_data.append(task_data)
+                file_data.append(task_object)
                 file.seek(0)
                 json.dump(file_data, file, indent=4)
-        print("New Task added succesfully!")
+        print("A New Task has been added succesfully!")
+
 
     def update_task(self, p_arg):
         """
@@ -104,15 +102,13 @@ class TaskCLI:
             None
         """
         update_time = str(datetime.datetime.now())
-        with open(self.default_file, 'r', encoding='utf-8') as file:
+        with open(self.default_task_file, 'r', encoding='utf-8') as file:
             file_data = json.load(file)
-
         for task in file_data:
             if task['id'] == p_arg.taskid:
                 task['description'] = p_arg.taskdescription
                 task['updatedAt'] = update_time
-
-        with open(self.default_file, 'w', encoding='utf-8') as file:
+        with open(self.default_task_file, 'w', encoding='utf-8') as file:
             json.dump(file_data, file, indent=4) 
 
         print("Task has been updated added succesfully!") 
@@ -126,7 +122,7 @@ class TaskCLI:
         Return:
             None
         """
-        with open(self.default_file, 'r', encoding='utf-8') as file:
+        with open(self.default_task_file, 'r', encoding='utf-8') as file:
             file_data = json.load(file)
 
         for task in file_data:
@@ -134,10 +130,11 @@ class TaskCLI:
                 task_index = file_data.index(task)
                 file_data.pop(task_index)
                 
-        with open(self.default_file, 'w', encoding='utf-8') as file:
+        with open(self.default_task_file, 'w', encoding='utf-8') as file:
             json.dump(file_data, file, indent=4)
 
         print("Task has been deleted added succesfully!")
+
 
     def mark_progress(self, p_arg):
         """
@@ -149,7 +146,7 @@ class TaskCLI:
             None
         """
         update_time = str(datetime.datetime.now())
-        with open(self.default_file, 'r', encoding='utf-8') as file:
+        with open(self.default_task_file, 'r', encoding='utf-8') as file:
             file_data = json.load(file)
 
         for task in file_data:
@@ -157,10 +154,11 @@ class TaskCLI:
                 task['status'] = 'In Progress'
                 task['updatedAt'] = update_time
 
-        with open(self.default_file, 'w', encoding='utf-8') as file:
+        with open(self.default_task_file, 'w', encoding='utf-8') as file:
             json.dump(file_data, file, indent=4)
 
         print(f"Status of Task {p_arg.taskid} has been set to 'In Progress'.")
+
 
     def mark_done(self, p_arg):
         """
@@ -172,7 +170,7 @@ class TaskCLI:
             None
         """
         update_time = str(datetime.datetime.now())
-        with open(self.default_file, 'r', encoding='utf-8') as file:
+        with open(self.default_task_file, 'r', encoding='utf-8') as file:
             file_data = json.load(file)
 
         for task in file_data:
@@ -180,10 +178,11 @@ class TaskCLI:
                 task['status'] = 'Done'
                 task['updatedAt'] = update_time
 
-        with open(self.default_file, 'w', encoding='utf-8') as file:
+        with open(self.default_task_file, 'w', encoding='utf-8') as file:
             json.dump(file_data, file, indent=4)
 
         print(f"Status of Task {p_arg.taskid} has been set to 'Done'.")
+
 
     def list_task(self, p_arg):
         """
@@ -194,48 +193,27 @@ class TaskCLI:
         Return:
             None
         """
-        with open(self.default_file, 'r', encoding='utf-8') as file:
-            file_data = json.load(file)
+        try:
+            with open(self.default_task_file, 'r', encoding='utf-8') as file:
+                file_data = json.load(file)
 
-        match p_arg.status:
-            case None:
-                for task in file_data:
-                    print(f'''Task ID: {task['id']}\n
-                              Description: {task['description']}\n
-                              Status: {task['status']}\n
-                              Created: {task['createdAt']}\n
-                              Updated: {task['updatedAt']}\n''')
-                    print()
-            case 'todo':
-                for task in file_data:
-                    if task['status'] == 'todo':
-                        print(f'''Task ID: {task['id']}\n
-                              Description: {task['description']}\n
-                              Status: {task['status']}\n
-                              Created: {task['createdAt']}\n
-                              Updated: {task['updatedAt']}\n''')
-                        print()
-            case 'in-progress':
-                for task in file_data:
-                    if task['status'].lower() == 'in progress':
-                        print(f'''Task ID: {task['id']}\n
-                              Description: {task['description']}\n
-                              Status: {task['status']}\n
-                              Created: {task['createdAt']}\n
-                              Updated: {task['updatedAt']}\n''')
-                        print()
-            case 'done':
-                for task in file_data:
-                    if task['status'].lower() == 'done':
-                        print(f'''Task ID: {task['id']}\n
-                              Description: {task['description']}\n
-                              Status: {task['status']}\n
-                              Created: {task['createdAt']}\n
-                              Updated: {task['updatedAt']}\n''')
-                        print()
+            match p_arg.status:
+                case None:
+                    print(tabulate.tabulate(file_data, headers={}, tablefmt="rounded_grid"))
+                case 'todo':
+                    todo_task = [task for task in file_data if task['status'] == 'todo']
+                    print(tabulate.tabulate(todo_task, headers={}, tablefmt="rounded_grid")) if todo_task.__len__() != 0 else print("You dont have any task in progress!")
+                case 'in-progress':
+                    in_progress_task = [task for task in file_data if task['status'].lower() == 'in progress']
+                    print(tabulate.tabulate(in_progress_task, headers={}, tablefmt="rounded_grid")) if in_progress_task.__len__() != 0 else print("You dont have any task in progress!")
+                case 'done':
+                    done_task = [task for task in file_data if task['status'].lower() == 'done']
+                    print(tabulate.tabulate(done_task, headers={}, tablefmt="rounded_grid")) if done_task.__len__() != 0 else print("You haven't completed any task")
+        except json.JSONDecodeError:
+            print("Hey there! you have no task in your list")
+
 
         
-
 
 if __name__ == "__main__":
     #initiate TaskCLI class

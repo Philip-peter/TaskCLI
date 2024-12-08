@@ -2,5 +2,6 @@ dataclasses==0.6
 DateTime==5.5
 pytz==2024.2
 setuptools==75.6.0
+tabulate==0.9.0
 typing==3.7.4.3
 zope.interface==7.2
